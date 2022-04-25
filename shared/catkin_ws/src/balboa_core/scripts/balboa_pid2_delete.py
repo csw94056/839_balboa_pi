@@ -116,65 +116,65 @@ class PIDNode(object):
                 self.target_angle = self.target_angle + (teleop_msg.angular.z / 2.0)*90.0
 				
 	def handleLandmarkLocation(self, lm_msg):
-            if self.landmark_detector == 0 or abs(lm_msg.code) == 1:
-                return
-            if lm_msg.code != self.landmark_num:
-                return
+        if self.landmark_detector == 0 and abs(lm_msg.code) == 1:
+            return
+        if lm_msg.code != self.landmark_num:
+            return
 
-            print("LandMark--------------------")
+        print("LandMark--------------------")
 
-            #distance = 304.89e^(-0.006 * height)
-            distance = 304.89 * math.exp(-0.006 * lm_msg.height) #cm
-            xmax = 650 #maximum of xtop and xbotton of landmarkLocation
+        #distance = 304.89e^(-0.006 * height)
+        distance = 304.89 * math.exp(-0.006 * lm_msg.height) #cm
+        xmax = 650 #maximum of xtop and xbotton of landmarkLocation
         
-            # x_avg is the mean of xtop and xbottom
-            x_avg = (lm_msg.xtop + lm_msg.xbottom)/2.0
-            # detected landmark image width; computed based on the height of landmark image
-            img_width = lm_msg.height * 1.29
-            # shifting x_avg to the center of the camera
-            x_0 = x_avg - xmax / 2
-            # radius is half of the landmark image width
-            radius = img_width / 2.0
-            # rescale x_0 in respect to radius to prevent over-turning due to large angle
-            x = x_0 * radius / xmax 
+        # x_avg is the mean of xtop and xbottom
+        x_avg = (lm_msg.xtop + lm_msg.xbottom)/2.0
+        # detected landmark image width; computed based on the height of landmark image
+        img_width = lm_msg.height * 1.29
+        # shifting x_avg to the center of the camera
+        x_0 = x_avg - xmax / 2
+        # radius is half of the landmark image width
+        radius = img_width / 2.0
+        # rescale x_0 in respect to radius to prevent over-turning due to large angle
+        x = x_0 * radius / xmax 
 
-            print("distance ", distance)
-            print("radius ", radius)
-            print("angle ",  (math.atan(x/distance) * 180.0/math.pi))
-            print("x_0 ", x_0)
-            dist_ctrl = 1
+        print("distance ", distance)
+        print("radius ", radius)
+        print("angle ",  (math.atan(x/distance) * 180.0/math.pi))
+        print("x_0 ", x_0)
+        dist_ctrl = 1
 
-            angle_ = (math.atan(x/distance) * 180.0/math.pi)
-            # if x is larger than radius, the robot will turn to face the landmark
-            if (abs(x_0) > radius):
-                print("angle control ----------------- ball detector")
-                #angle_ = (math.atan(x/distance) * 180.0/math.pi)
+        angle_ = (math.atan(x/distance) * 180.0/math.pi)
+        # if x is larger than radius, the robot will turn to face the landmark
+        if (abs(x_0) > radius):
+            print("angle control ----------------- ball detector")
+            #angle_ = (math.atan(x/distance) * 180.0/math.pi)
             
-                # if the robot is close to the landmark, we reduce angle control by half to prevernt overshoot in angle turn
-                if radius > 180:
-                    angle_ = 0.5 * angle_
+            # if the robot is close to the landmark, we reduce angle control by half to prevernt overshoot in angle turn
+            if radius > 180:
+                angle_ = 0.5 * angle_
 
-                print("angle_ ", angle_)
-                self.target_angle = self.current_angle - angle_ * self.angleCorrection
-                dist_ctrl = 0
-            
-            # if robot is facing the landmark, distance control is allowed to control the robot to move forward and backward
-            if abs(self.lm_dist - distance) > 15 and dist_ctrl == 1:
-                print("distance control ---------------ball detector")
+            print("angle_ ", angle_)
+            self.target_angle = self.current_angle - angle_ * self.angleCorrection
+            dist_ctrl = 0
+        
+        # if robot is facing the landmark, distance control is allowed to control the robot to move forward and backward
+        if abs(self.lm_dist - distance) > 15 and dist_ctrl == 1:
+            print("distance control ---------------ball detector")
 
             if distance >= self.lm_dist:
                 self.target_distance = self.current_distance + (distance - self.lm_dist) * 52.2
                 self.target_angle = INF
 
-            # if the robot is close enough to detect the ball infront of the landmark, ball_detector function is activate to hit the ball
-            if distance < self.lm_dist and dist_ctrl == 1:
+        # if the robot is close enough to detect the ball infront of the landmark, ball_detector function is activate to hit the ball
+        if distance < self.lm_dist and dist_ctrl == 1:
             
-                # First, the robot will keep 40 cm away from the target ball and then it will move forward to hit the ball
-                self.ball_detector_distance = 40
-                self.ball_detector = 1
-                self.pacman = 1
-                self.searching = 1
-                self.landmark_detector = 0
+            # First, the robot will keep 40 cm away from the target ball and then it will move forward to hit the ball
+            self.ball_detector_distance = 40
+            self.ball_detector = 1
+            self.pacman = 1
+            self.searching = 1
+            self.landmark_detector = 0
 
         #print("code ", lm_msg.code)
         #print("xtop ", lm_msg.xtop, " ytop ", lm_msg.ytop, " xbottom ", lm_msg.xbottom, " ybotton ", lm_msg.ybottom )
