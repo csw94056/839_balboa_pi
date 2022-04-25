@@ -161,13 +161,14 @@ class PIDNode(object):
         # if robot is facing the landmark, distance control is allowed to control the robot to move forward and backward
         if abs(self.lm_dist - distance) > 15 and dist_ctrl == 1:
             print("distance control ---------------ball detector")
-            
-            if distance >= 110:
+
+            if distance >= self.lm_dist:
                 self.target_distance = self.current_distance + (distance - self.lm_dist) * 52.2
                 self.target_angle = INF
 
         # if the robot is close enough to detect the ball infront of the landmark, ball_detector function is activate to hit the ball
-        if distance < 110 and dist_ctrl == 1:
+        if distance < self.lm_dist and dist_ctrl == 1:
+            
             # First, the robot will keep 40 cm away from the target ball and then it will move forward to hit the ball
             self.ball_detector_distance = 40
             self.ball_detector = 1
@@ -197,7 +198,6 @@ class PIDNode(object):
         print("yellow ball")    
         self.ballLocation(bl_msg)
         
-		
     def ballLocation(self, bl_msg):
         # ignore if ball detector is not activate or radius is less than 25
         if self.ball_detector == 0 or bl_msg.radius < 25:
@@ -230,7 +230,15 @@ class PIDNode(object):
         servo_msg = Float64()
         servo_msg.data = dist
         self.pub_servo_distance.publish(servo_msg)
+
+        if self.pac_man == 0:
+            return
         
+        # move the robot to hit the ball; addition forward 3 cm movement
+        if dist < 40:
+            self.target_distance += (self.ball_detector_dist + 3) * 52.2
+            # self.target_distance = self.current_distance + (dist + 20) * 52.2
+
     def handleBalboaLL(self, balboall_msg):
         # receive PID settings from launch file or command line via (rosparam set param_name value)
         self.Kp_distance = rospy.get_param('distanceCtrl/P')
@@ -347,6 +355,25 @@ class PIDNode(object):
                 angularPID_msg = Int16()
                 angularPID_msg.data = int(val[1:])
                 self.pub_angularPID.publish(angularPID_msg)
+                
+            elif val[0] == 'l' and val[1] == 'm':
+                self.landmark_num = int(val[2:])
+                self.landmark_detector = 1
+                self.lm_dist = 110
+                self.target_angle = INF
+                self.target_distance = INF
+                print("------------------------landmark launched")
+                # while self.searching == 1:
+                    # print("spinning to find landmark-----------------------")
+                    #rospy.sleep(1)
+                    # self.target_angle = self.current_angle + 15 * self.angleCorrection
+
+            elif val[0] == 'p' and val[1] == 'a' and val[2] == 'c':
+                self.ball_detector_dist = 40
+                self.ball_detector = 1
+                self.pac_man = 1
+                self.target_angle = INF
+                self.target_distance = INF
 
             elif val[0] == 'b' and val[1] == 'd':
                 self.ball_detector_dist = int(val[2:])
