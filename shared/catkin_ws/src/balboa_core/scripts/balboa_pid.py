@@ -76,7 +76,13 @@ class PIDNode(object):
 
         #flag for ball detector
         self.ball_detector = 0
+        #fixed distance variable for the robot to keep from the target ball
         self.ball_detector_dist = 0
+
+        #flag for pac-man
+        self.pac_man = 0
+        #the ball is detected
+        self.ball_detected = 0
 
     def handleTurtleTeleopKey(self, teleop_msg):
         # update target distance and angle based on turtle_teleop_key/cmd_vel
@@ -104,6 +110,8 @@ class PIDNode(object):
         if self.ball_detector == 0 or bl_msg.radius < 25:
             return
 
+        self.ball_detected = 1
+
         dist = 189.23 * math.exp(-0.014 * bl_msg.radius) # cm
         # scale x variable in respect to the scale of the radius from ballLocation
         x = bl_msg.x * bl_msg.radius / bl_msg.imageWidth
@@ -127,9 +135,22 @@ class PIDNode(object):
         elif abs(self.ball_detector_dist - dist) > 15:
             self.target_distance = self.current_distance + (dist - self.ball_detector_dist) * 52.2
             self.target_angle = INF
+
+        # publish visual servoing distance between the robot and the target
         servo_msg = Float64()
         servo_msg.data = dist
         self.pub_servo_distance.publish(servo_msg)
+
+        if self.pac_man == 0:
+            return
+
+        # move the robot to hit the ball; addition forward 3 cm movement
+        self.target_distance += (self.ball_detector_dist + 3) * 52.2
+        
+
+
+
+        
         
     def handleBalboaLL(self, balboall_msg):
         # receive PID settings from launch file or command line via (rosparam set param_name value)
@@ -449,6 +470,7 @@ class PIDNode(object):
                 self.r_ctrl_dist_target = 0
                 self.ball_detector = 0
                 self.ball_detector_dist = 0
+                self.pac_man = 0
                 
             elif val[0] == 'a' and val[1] == 'v' and val[2] == 'a':
                 # activate angleVelPID
@@ -489,6 +511,13 @@ class PIDNode(object):
             elif val[0] == 'b' and val[1] == 'd':
                 self.ball_detector_dist = int(val[2:])
                 self.ball_detector = 1
+                self.target_angle = INF
+                self.target_distance = INF
+
+            elif val[0] == 'p' and val[1] == 'a' and val[2] == 'c':
+                self.ball_detector_dist = 40
+                self.ball_detector = 1
+                self.pac_man = 1
                 self.target_angle = INF
                 self.target_distance = INF
                 
