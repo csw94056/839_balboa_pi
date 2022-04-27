@@ -65,7 +65,7 @@ class PIDNode(object):
         rospy.set_param('clean_angleCtrl/D', 0.0)
         self.draw_CS = 0
         self.angle_speed_limit = 10
-        self.distance_speed_limit = 10
+        self.distance_speed_limit = 15
         # flag for reactive control
         self.reactive_control = 0
         self.r_ctrl_dist_target = 0
@@ -100,6 +100,8 @@ class PIDNode(object):
 
         self.angleCorrection = 1
         self.test_states = 0
+
+        self.y_ball_found = 0
 
     def handleTurtleTeleopKey(self, teleop_msg):
         # update target distance and angle based on turtle_teleop_key/cmd_vel
@@ -205,7 +207,8 @@ class PIDNode(object):
     def handleBallLocationYellow(self, bl_msg):
         if bl_msg.radius < 25:
             return
-        print("yellow ball")    
+        print("yellow ball")
+        self.y_ball_found = 1
         self.ballLocation(bl_msg)
         
     def ballLocation(self, bl_msg):
@@ -271,7 +274,7 @@ class PIDNode(object):
         print("current_distance ", self.current_distance)
         self.ball_detector = 0
 
-    def handleBalboaLL(self, balboall_msg):
+    def handleBalboaLL(self, balboall_msg):               
         # receive PID settings from launch file or command line via (rosparam set param_name value)
         self.Kp_distance = rospy.get_param('distanceCtrl/P')
         self.Ki_distance = rospy.get_param('distanceCtrl/I')
@@ -284,6 +287,13 @@ class PIDNode(object):
             self.Kp_angle = rospy.get_param('clean_angleCtrl/P')
             self.Ki_angle = rospy.get_param('clean_angleCtrl/I')
             self.Kd_angle = rospy.get_param('clean_angleCtrl/D')
+
+        # if no yellow ball is found then increment from 1 to 6 each iteration
+        if self.y_ball_found > 0:
+            self.y_ball_found = self.y_ball_found + 1
+            # if not yellow ball is found for 5 increment set to 0 (no yellow ball visible)
+            if self.y_ball_found == 6:
+                self.y_ball_found = 0
 
         self.angleY = balboall_msg.angleY / 1000.0 #in degree
         self.angleX = balboall_msg.angleX
@@ -328,8 +338,9 @@ class PIDNode(object):
                 self.pub_distancePID.publish(distancePID_msg)
             
     def handleIrRangeSensor(self, ir_msg):
-        #if self.ball_detector > 0:
-        #    return
+        if self.y_ball_found > 0:
+            self.test_states = 1
+            return
         
         if self.reactive_control > 0:
             # the robot follows if there is a distance between target and sensed data
@@ -453,6 +464,11 @@ class PIDNode(object):
                 # distance to maintain from object
                 self.r_ctrl_dist_target = 20
                 self.test_states = 1
+                self.ball_detector_dist = 50
+                self.ball_detector = 1
+                self.pac_man = 1
+                self.target_angle = INF
+                self.target_distance = INF
                 print("r_ctrl ", self.r_ctrl_dist_target)
                 print("test state 1")
 
