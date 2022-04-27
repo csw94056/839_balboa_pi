@@ -328,11 +328,10 @@ class PIDNode(object):
                 self.pub_distancePID.publish(distancePID_msg)
             
     def handleIrRangeSensor(self, ir_msg):
-        self.ir = ir_msg.data
-
+        if self.ball_detector > 0:
+            return
+        
         if self.reactive_control > 0:
-            self.target_distance = INF
-            self.target_angle = INF
             # the robot follows if there is a distance between target and sensed data
             # if the sensed data is father than 50 cm, then the robot will not follow
             if self.test_states > 0:
@@ -358,12 +357,8 @@ class PIDNode(object):
         # state 2: rotate 90 degree to the right.
         elif self.test_states == 2:
             if self.target_angle == INF:
-                print("inrement 90 degree")
-                self.target_angle = self.current_angle + 90.0
+                self.target_angle = self.current_angle - 90.0
                 self.target_distance = INF
-
-            print("t_angle ", self.target_angle)
-            print("c_angle ", self.current_angle)
                 
             if abs(self.target_angle - self.current_angle) <= 5:
                 # the robot rotated 90 +- 5 degree
