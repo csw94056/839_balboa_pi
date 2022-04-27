@@ -335,15 +335,49 @@ class PIDNode(object):
             self.target_angle = INF
             # the robot follows if there is a distance between target and sensed data
             # if the sensed data is father than 50 cm, then the robot will not follow
-            if self.test > 0:
-                self.target_distance = INF - 1
-                if abs(ir_msg.data) <= self.r_ctrl_dist_target + 2:
-                    self.target_distance = self.current_distance
-                    
+            if self.test_states > 0:
+                self.test_states_movement(ir_msg);
+                
             elif abs(ir_msg.data - self.r_ctrl_dist_target) > 0 and abs(ir_msg.data - self.r_ctrl_dist_target) <= 160:
                 #self.target_distance = self.current_distance + ((ir_msg.data - self.r_ctrl_dist_target) * math.cos(self.angleY) * 52.2)
                 self.target_distance = self.current_distance + ((ir_msg.data - self.r_ctrl_dist_target) * 52.2)
                 # target distance of 52.2 moves Balboa 1 cm
+
+    def test_states_movement(self, ir_msg):
+        # state 1: move forward until object is detected. keep 20 cm away from the object.
+        if self.test_states == 1:
+            self.target_distance = INF - 1
+            self.target_angle = INF
+            if abs(ir_msg.data) <= self.r_ctrl_dist_target + 2:
+                # the robot is 20cm away from the object
+                self.target_distance = INF
+                self.set_motorSpeed(0, 0)
+                self.test_states = 2
+                print("test state 2")
+
+        # state 2: rotate 90 degree to the right.
+        elif self.test_states == 2:
+            if self.target_angle == INF:
+                print("inrement 90 degree")
+                self.target_angle = self.current_angle + 90.0
+                self.target_distance = INF
+
+            print("t_angle ", self.target_angle)
+            print("c_angle ", self.current_angle)
+                
+            if abs(self.target_angle - self.current_angle) <= 5:
+                # the robot rotated 90 +- 5 degree
+                self.target_angle = INF
+                self.set_motorSpeed(0, 0)
+                self.test_states = 1
+                print("test state 1")
+
+    def set_motorSpeed(self, left, right):
+        speed_msg = balboaMotorSpeeds()
+        speed_msg.left = int(left)
+        speed_msg.right = int(right)
+        self.pub_distancePID.publish(speed_msg)
+
 
     def main_loop(self):
         r = rospy.Rate(200)
@@ -367,7 +401,7 @@ class PIDNode(object):
                 self.ball_detector = 0
                 self.ball_detector_dist = 0
                 self.pac_man = 0
-                self.test = 0
+                self.test_states = 0
                 
             elif val[0] == 'a' and val[1] == 'v' and val[2] == 'a':
                 # activate angleVelPID
@@ -423,8 +457,9 @@ class PIDNode(object):
                 self.reactive_control = 1
                 # distance to maintain from object
                 self.r_ctrl_dist_target = 20
-                self.test = 1
+                self.test_states = 1
                 print("r_ctrl ", self.r_ctrl_dist_target)
+                print("test state 1")
 
 
             elif val[0] == 'b' and val[1] == 'd':
