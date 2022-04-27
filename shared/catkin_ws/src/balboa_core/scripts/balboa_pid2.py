@@ -65,7 +65,7 @@ class PIDNode(object):
         rospy.set_param('clean_angleCtrl/D', 0.0)
         self.draw_CS = 0
         self.angle_speed_limit = 10
-        self.distance_speed_limit = 5
+        self.distance_speed_limit = 10
         # flag for reactive control
         self.reactive_control = 0
         self.r_ctrl_dist_target = 0
@@ -76,6 +76,10 @@ class PIDNode(object):
         self.sensor3 = 2500
         self.sensor4 = 2500
 
+        #balboaLL variables
+        self.angleX = 0
+        self.angleY = 0  # unit: degrees
+        
         self.bugFlag = 0
         self.unobsMoveAngle = 0
 
@@ -93,7 +97,9 @@ class PIDNode(object):
         #flag for landmark detector
         self.landmark_detector = 0
         self.landmark_num = 0
-        
+
+        self.angleCorrection = 1
+        self.test = 0
 
     def handleTurtleTeleopKey(self, teleop_msg):
         # update target distance and angle based on turtle_teleop_key/cmd_vel
@@ -125,7 +131,9 @@ class PIDNode(object):
         print("LandMark--------------------")
 
         #distance = 304.89e^(-0.006 * height)
-        distance = 304.89 * math.exp(-0.006 * lm_msg.height) #cm
+        #distance = 304.89 * math.exp(-0.006 * lm_msg.height) * math.cos(self.angleY*math.pi/180.0) #cm
+        distance = 304.89 * math.exp(-0.006 * lm_msg.height)  #cm
+
         xmax = 650 #maximum of xtop and xbotton of landmarkLocation
         
         # x_avg is the mean of xtop and xbottom
@@ -163,19 +171,20 @@ class PIDNode(object):
         if abs(self.lm_dist - distance) > 15 and dist_ctrl == 1:
             print("distance control ---------------ball detector")
 
-            if distance >= self.lm_dist:
+            if distance > self.lm_dist:
                 self.target_distance = self.current_distance + (distance - self.lm_dist) * 52.2
                 self.target_angle = INF
 
-            # if the robot is close enough to detect the ball infront of the landmark, ball_detector function is activate to hit the ball
-            if distance < self.lm_dist and dist_ctrl == 1:
-            
-                # First, the robot will keep 40 cm away from the target ball and then it will move forward to hit the ball
-                self.ball_detector_distance = 40
-                self.ball_detector = 1
-                self.pacman = 1
-                self.searching = 1
-                self.landmark_detector = 0
+        # if the robot is close enough to detect the ball infront of the landmark, ball_detector function is activate to hit the ball
+        if distance <= self.lm_dist + 10 and dist_ctrl == 1:    
+            # First, the robot will keep 90 cm away from the target ball and then it will move forward to hit the ball
+            self.ball_detector_dist = 90
+            self.ball_detector = 1
+            self.pac_man = 1
+            self.landmark_detector = 0
+            self.pac_man_ctrl_enabled = 0
+            self.target_distance = INF
+            self.target_angle = INF
 
         #print("code ", lm_msg.code)
         #print("xtop ", lm_msg.xtop, " ytop ", lm_msg.ytop, " xbottom ", lm_msg.xbottom, " ybotton ", lm_msg.ybottom )
@@ -203,42 +212,64 @@ class PIDNode(object):
         # ignore if ball detector is not activate or radius is less than 25
         if self.ball_detector == 0 or bl_msg.radius < 25:
             return
-
+        #if self.pac_man_ctrl_enabled > 0:
+        #    return
+        
+        #dist = 189.23 * math.exp(-0.014 * bl_msg.radius) * math.cos(self.angleY * math.pi / 180.0) # cm
+       # dist = 189.23 * math.exp(-0.014 * bl_msg.radius) * math.cos(self.angleY * math.pi / 180.0) # cm
         dist = 189.23 * math.exp(-0.014 * bl_msg.radius) # cm
         # scale x variable in respect to the scale of the radius from ballLocation
         x = bl_msg.x * bl_msg.radius / bl_msg.imageWidth
         
-        print("bl_msg.x ", bl_msg.x)
+        #print("bl_msg.x ", bl_msg.x)
         print("x ", x)
         print("dist ", dist)
         print("angle ",  ((math.atan(x / dist)) * 180.0 / math.pi) )
         print("radius ", bl_msg.radius)
+        print("bl_msg.x ", bl_msg.x)
+        print("range ", abs(self.ball_detector_dist - dist))
 
+        angle_ = ((math.atan(x/dist)) * 180.0 / math.pi)
         # position the robot to face the ball straight on
-        if abs(bl_msg.x) > bl_msg.radius:
-            angle_ = ((math.atan(x/dist)) * 180.0 / math.pi)
+        #if abs(bl_msg.x) > bl_msg.radius or abs(angle_) > 5:
+        if abs(angle_) > 5:
+            print("\n angle control---------------------")
             # if the robot is close to the ball, then reduce angle control by half
-            if bl_msg.radius > 50:
-                angle_ = 0.5 * angle_ 
+            #if bl_msg.radius > 50:
+            if dist <= 50:
+                angle_ = 0.8 * angle_
+                
             self.target_angle = self.current_angle - angle_
             self.target_distance = INF
+            return
 
         # move the robot toward the ball
-        elif abs(self.ball_detector_dist - dist) > 15:
+        elif abs(self.ball_detector_dist - dist) > 5:
+            print("\n distance control---------------------")
             self.target_distance = self.current_distance + (dist - self.ball_detector_dist) * 52.2
             self.target_angle = INF
+            return
             
-        servo_msg = Float64()
-        servo_msg.data = dist
-        self.pub_servo_distance.publish(servo_msg)
+        #servo_msg = Float64()
+        #servo_msg.data = dist
+        #self.pub_servo_distance.publish(servo_msg)
 
         if self.pac_man == 0:
             return
-        
+
+        print("\npac-man---------------------ctrl-------------")
+        print("dist: ", dist)
+        print("self.ball_detector_dist: ", self.ball_detector_dist) 
         # move the robot to hit the ball; addition forward 3 cm movement
-        if dist < 40:
-            self.target_distance += (self.ball_detector_dist + 3) * 52.2
-            # self.target_distance = self.current_distance + (dist + 20) * 52.2
+        #if dist < self.ball_detector_dist + 10:
+            #self.pac_man_ctrl_enabled = 1
+        print("pacman ctrl----------------------------------")
+            #self.target_distance += (self.ball_detector_dist + 3) * 52.2
+        self.target_distance = self.current_distance + (dist + 5) * 52.2
+        self.target_angle = INF
+        print("target_distance ", self.target_distance)
+        print("current_distance ", self.current_distance)
+        self.ball_detector = 0
 
     def handleBalboaLL(self, balboall_msg):
         # receive PID settings from launch file or command line via (rosparam set param_name value)
@@ -253,13 +284,15 @@ class PIDNode(object):
             self.Kp_angle = rospy.get_param('clean_angleCtrl/P')
             self.Ki_angle = rospy.get_param('clean_angleCtrl/I')
             self.Kd_angle = rospy.get_param('clean_angleCtrl/D')
-        
+
+        self.angleY = balboall_msg.angleY / 1000.0 #in degree
         self.angleX = balboall_msg.angleX
         self.current_angle = balboall_msg.angleX / 1000.0 # balboall_msg.angleX is in millidegrees
         self.current_distance = balboall_msg.distanceLeft * 1.0
         
         self.tangent_bug_states(balboall_msg)
-                            
+        #print("cd ", self.current_distance, " td ", self.target_distance)
+        #print("ca ", self.current_angle, " ta ", self.target_angle)
         # distancePID
         if self.target_distance < INF:
             r_distance, self.prev_error_distance, self.integral_distance = self.pid_control(self.Kp_distance, self.Ki_distance, self.Kd_distance, self.target_distance, self.current_distance, self.prev_error_distance, self.integral_distance)
@@ -302,7 +335,13 @@ class PIDNode(object):
             self.target_angle = INF
             # the robot follows if there is a distance between target and sensed data
             # if the sensed data is father than 50 cm, then the robot will not follow
-            if abs(ir_msg.data - self.r_ctrl_dist_target) > 0 and abs(ir_msg.data - self.r_ctrl_dist_target) <= 50:
+            if self.test > 0:
+                self.target_distance = INF - 1
+                if abs(ir_msg.data) <= self.r_ctrl_dist_target + 2:
+                    self.target_distance = self.current_distance
+                    
+            elif abs(ir_msg.data - self.r_ctrl_dist_target) > 0 and abs(ir_msg.data - self.r_ctrl_dist_target) <= 160:
+                #self.target_distance = self.current_distance + ((ir_msg.data - self.r_ctrl_dist_target) * math.cos(self.angleY) * 52.2)
                 self.target_distance = self.current_distance + ((ir_msg.data - self.r_ctrl_dist_target) * 52.2)
                 # target distance of 52.2 moves Balboa 1 cm
 
@@ -324,8 +363,11 @@ class PIDNode(object):
                 self.reactive_control = 0
                 self.bugFlag = 0
                 self.r_ctrl_dist_target = 0
+                self.landmark_detector
                 self.ball_detector = 0
                 self.ball_detector_dist = 0
+                self.pac_man = 0
+                self.test = 0
                 
             elif val[0] == 'a' and val[1] == 'v' and val[2] == 'a':
                 # activate angleVelPID
@@ -361,6 +403,7 @@ class PIDNode(object):
                 self.landmark_num = int(val[2:])
                 self.landmark_detector = 1
                 self.lm_dist = 110
+                self.pac_man_ctrl_enabled = 0
                 self.target_angle = INF
                 self.target_distance = INF
                 print("------------------------landmark launched")
@@ -370,11 +413,19 @@ class PIDNode(object):
                     # self.target_angle = self.current_angle + 15 * self.angleCorrection
 
             elif val[0] == 'p' and val[1] == 'a' and val[2] == 'c':
-                self.ball_detector_dist = 40
+                self.ball_detector_dist = 50
                 self.ball_detector = 1
                 self.pac_man = 1
                 self.target_angle = INF
                 self.target_distance = INF
+
+            elif val[0] == 't' and val[1] == 'e' and val[2] == 's' and val[3] == 't':
+                self.reactive_control = 1
+                # distance to maintain from object
+                self.r_ctrl_dist_target = 20
+                self.test = 1
+                print("r_ctrl ", self.r_ctrl_dist_target)
+
 
             elif val[0] == 'b' and val[1] == 'd':
                 self.ball_detector_dist = int(val[2:])
@@ -384,7 +435,8 @@ class PIDNode(object):
                 
             elif val[0] == 'i' and val[1] == 'r':
                 # IR sensor range is 20-150cm
-                if int(val[2:]) > 19 and int(val[2:]) < 51:
+                #if int(val[2:]) > 19 and int(val[2:]) < 51:
+                if int(val[2:]) > 4 and int(val[2:]) < 151:
                     self.reactive_control = 1
                     # distance to maintain from object
                     self.r_ctrl_dist_target = int(val[2:])

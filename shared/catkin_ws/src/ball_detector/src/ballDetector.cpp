@@ -40,7 +40,7 @@ using namespace std;
 namespace enc = sensor_msgs::image_encodings;
 
 //Define to enable debugging (images, times, etc)
-#define BALLDETECTOR_DEBUG
+//#define BALLDETECTOR_DEBUG
 
 
 
