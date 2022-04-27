@@ -99,7 +99,7 @@ class PIDNode(object):
         self.landmark_num = 0
 
         self.angleCorrection = 1
-        self.test = 0
+        self.test_states = 0
 
     def handleTurtleTeleopKey(self, teleop_msg):
         # update target distance and angle based on turtle_teleop_key/cmd_vel
@@ -328,8 +328,8 @@ class PIDNode(object):
                 self.pub_distancePID.publish(distancePID_msg)
             
     def handleIrRangeSensor(self, ir_msg):
-        if self.ball_detector > 0:
-            return
+        #if self.ball_detector > 0:
+        #    return
         
         if self.reactive_control > 0:
             # the robot follows if there is a distance between target and sensed data
