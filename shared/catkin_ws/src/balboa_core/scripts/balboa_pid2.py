@@ -208,13 +208,16 @@ class PIDNode(object):
         if bl_msg.radius < 25:
             return
         print("yellow ball")
-        self.y_ball_found = 1
+        # self.y_ball_found = 1
         self.ballLocation(bl_msg)
         
     def ballLocation(self, bl_msg):
         # ignore if ball detector is not activate or radius is less than 25
         if self.ball_detector == 0 or bl_msg.radius < 25:
             return
+
+        self.y_ball_found = 1
+        
         #if self.pac_man_ctrl_enabled > 0:
         #    return
         
@@ -272,6 +275,7 @@ class PIDNode(object):
         self.target_angle = INF
         print("target_distance ", self.target_distance)
         print("current_distance ", self.current_distance)
+        # set ball_detector to 0 to give robot time to hit the ball
         self.ball_detector = 0
 
     def handleBalboaLL(self, balboall_msg):               
@@ -292,8 +296,13 @@ class PIDNode(object):
         if self.y_ball_found > 0:
             self.y_ball_found = self.y_ball_found + 1
             # if not yellow ball is found for 5 increment set to 0 (no yellow ball visible)
-            if self.y_ball_found == 6:
+            if self.y_ball_found == 20:
                 self.y_ball_found = 0
+
+        # self.ball_detector only set to 0 if the robot tried to hit the ball
+        # we wait for self.y_ball_found increment to 6 and set back to 0 to provide sufficient enough time for the robot to hit the ball
+        if self.y_ball_found == 0 and self.ball_detector == 0 and self.test_states > 0:    
+            self.ball_detector = 1
 
         self.angleY = balboall_msg.angleY / 1000.0 #in degree
         self.angleX = balboall_msg.angleX
